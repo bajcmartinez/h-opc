@@ -106,6 +106,16 @@ namespace Hylasoft.Opc.Ua
       return System.Type.GetType("System." + type.ToString());
     }
 
+    /// <summary>
+    /// Gets the engineering unit of an OPC tag
+    /// </summary>
+    /// <param name="tag">Tag to get engineering unit of</param>
+    /// <returns>String</returns>
+    public String GetEngineeringUnit(string tag)
+    {
+      return String.Empty;
+    }
+
     private void SessionKeepAlive(Session session, KeepAliveEventArgs e)
     {
       if (e.CurrentState != ServerState.Running)
@@ -193,6 +203,7 @@ namespace Hylasoft.Opc.Ua
       var val = results[0];
 
       var readEvent = new ReadEvent<T>();
+      readEvent.Tag = tag;
       readEvent.Value = (T)val.Value;
       readEvent.SourceTimestamp = val.SourceTimestamp;
       readEvent.ServerTimestamp = val.ServerTimestamp;
@@ -235,6 +246,7 @@ namespace Hylasoft.Opc.Ua
               var val = results[0];
               var readEvent = new ReadEvent<T>();
               readEvent.Value = (T)val.Value;
+              readEvent.Tag = tag;
               readEvent.SourceTimestamp = val.SourceTimestamp;
               readEvent.ServerTimestamp = val.ServerTimestamp;
               if (StatusCode.IsGood(val.StatusCode)) readEvent.Quality = Quality.Good;
@@ -374,12 +386,73 @@ namespace Hylasoft.Opc.Ua
 
         var monitorEvent = new ReadEvent<T>();
         monitorEvent.Value = (T)t;
+        monitorEvent.Tag = tag;
         monitorEvent.SourceTimestamp = p.Value.SourceTimestamp;
         monitorEvent.ServerTimestamp = p.Value.ServerTimestamp;
         if (StatusCode.IsGood(p.Value.StatusCode)) monitorEvent.Quality = Quality.Good;
         if (StatusCode.IsBad(p.Value.StatusCode)) monitorEvent.Quality = Quality.Bad;
         callback(monitorEvent, unsubscribe);
       };
+    }
+
+    /// <summary>
+    /// Monitor the specified tags for changes
+    /// </summary>
+    /// <typeparam name="T">the type of tag to monitor</typeparam>
+    /// <param name="tags">The list of fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
+    /// E.g: the tag `foo.bar` monitors the tag `bar` on the folder `foo`</param>
+    /// <param name="callback">the callback to execute when the value is changed.
+    /// The first parameter is the new value of the node, the second is an `unsubscribe` function to unsubscribe the callback</param>
+    public void Monitor<T>(string[] tags, Action<ReadEvent<T>, Action> callback)
+    {
+      foreach (var tag in tags)
+      {
+        var node = FindNode(tag);
+
+        var sub = new Subscription
+        {
+          PublishingInterval = _options.DefaultMonitorInterval,
+          PublishingEnabled = true,
+          LifetimeCount = _options.SubscriptionLifetimeCount,
+          KeepAliveCount = _options.SubscriptionKeepAliveCount,
+          DisplayName = tag,
+          Priority = byte.MaxValue
+        };
+
+        var item = new MonitoredItem
+        {
+          StartNodeId = node.NodeId,
+          AttributeId = Attributes.Value,
+          DisplayName = tag,
+          SamplingInterval = _options.DefaultMonitorInterval
+        };
+        sub.AddItem(item);
+        _session.AddSubscription(sub);
+        sub.Create();
+        sub.ApplyChanges();
+
+        item.Notification += (monitoredItem, args) =>
+        {
+          var p = (MonitoredItemNotification)args.NotificationValue;
+          var t = p.Value.WrappedValue.Value;
+          Action unsubscribe = () =>
+          {
+            sub.RemoveItems(sub.MonitoredItems);
+            sub.Delete(true);
+            _session.RemoveSubscription(sub);
+            sub.Dispose();
+          };
+
+          var monitorEvent = new ReadEvent<T>();
+          monitorEvent.Value = (T)t;
+          monitorEvent.Tag = tag;
+          monitorEvent.SourceTimestamp = p.Value.SourceTimestamp;
+          monitorEvent.ServerTimestamp = p.Value.ServerTimestamp;
+          if (StatusCode.IsGood(p.Value.StatusCode)) monitorEvent.Quality = Quality.Good;
+          if (StatusCode.IsBad(p.Value.StatusCode)) monitorEvent.Quality = Quality.Bad;
+          callback(monitorEvent, unsubscribe);
+        };
+      }
     }
 
     /// <summary>

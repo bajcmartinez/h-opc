@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using Hylasoft.Opc.Common;
 using Opc;
-using Opc.Ua;
 using Factory = OpcCom.Factory;
 using OpcDa = Opc.Da;
 
@@ -56,6 +55,30 @@ namespace Hylasoft.Opc.Da
         throw new OpcException("Could not find node because server not connected.");
       }
       return result.DataType;
+    }
+
+    /// <summary>
+    /// Gets the engineering unit of an OPC tag
+    /// </summary>
+    /// <param name="tag">Tag to get enginneering unit of</param>
+    /// <returns>String</returns>
+    public String GetEngineeringUnit(string tag)
+    {
+      var item = new OpcDa.Item { ItemName = tag };
+      String result = String.Empty;
+      try
+      {
+        var propertyCollection = _server.GetProperties(new[] { item }, new[] { OpcDa.Property.ENGINEERINGUINTS }, false);
+        if (propertyCollection.Length > 0 && propertyCollection[0] != null && propertyCollection[0].Count > 0)
+        {
+          result = propertyCollection[0][0].Value.ToString();
+        }
+      }
+      catch (NullReferenceException)
+      {
+        throw new OpcException("Could not find node because server not connected.");
+      }
+      return result;
     }
 
     /// <summary>
@@ -117,6 +140,7 @@ namespace Hylasoft.Opc.Da
       TryCastResult(result.Value, out casted);
 
       var readEvent = new ReadEvent<T>();
+      readEvent.Tag = tag;
       readEvent.Value = casted;
       readEvent.SourceTimestamp = result.Timestamp;
       readEvent.ServerTimestamp = result.Timestamp;
@@ -194,6 +218,7 @@ namespace Hylasoft.Opc.Da
         TryCastResult(values[0].Value, out casted);
         var monitorEvent = new ReadEvent<T>();
         monitorEvent.Value = casted;
+        monitorEvent.Tag = values[0].ItemName;
         monitorEvent.SourceTimestamp = values[0].Timestamp;
         monitorEvent.ServerTimestamp = values[0].Timestamp;
         if (values[0].Quality == OpcDa.Quality.Good) monitorEvent.Quality = Quality.Good;
@@ -201,6 +226,54 @@ namespace Hylasoft.Opc.Da
         callback(monitorEvent, unsubscribe);
       };
       sub.AddItems(new[] { new OpcDa.Item { ItemName = tag } });
+      sub.SetEnabled(true);
+    }
+
+    /// <summary>
+    /// Monitor the specified tags for changes
+    /// </summary>
+    /// <typeparam name="T">the type of tag to monitor</typeparam>
+    /// <param name="tags">The list of fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
+    /// E.g: the tag `foo.bar` monitors the tag `bar` on the folder `foo`</param>
+    /// <param name="callback">the callback to execute when the value is changed.
+    /// The first parameter is the new value of the node, the second is an `unsubscribe` function to unsubscribe the callback</param>
+    public void Monitor<T>(string[] tags, Action<ReadEvent<T>, Action> callback)
+    {
+      var subItem = new OpcDa.SubscriptionState
+      {
+        Name = (++_sub).ToString(CultureInfo.InvariantCulture),
+        Active = true,
+        UpdateRate = DefaultMonitorInterval
+      };
+      var sub = _server.CreateSubscription(subItem);
+
+      // I have to start a new thread here because unsubscribing
+      // the subscription during a datachanged event causes a deadlock
+      Action unsubscribe = () => new Thread(o =>
+        _server.CancelSubscription(sub)).Start();
+
+      sub.DataChanged += (handle, requestHandle, values) =>
+      {
+        foreach (var value in values)
+        {
+          T casted;
+          TryCastResult(value.Value, out casted);
+          var monitorEvent = new ReadEvent<T>();
+          monitorEvent.Value = casted;
+          monitorEvent.SourceTimestamp = value.Timestamp;
+          monitorEvent.ServerTimestamp = value.Timestamp;
+          monitorEvent.Tag = value.ItemName;
+          if (value.Quality == OpcDa.Quality.Good) monitorEvent.Quality = Quality.Good;
+          if (value.Quality == OpcDa.Quality.Bad) monitorEvent.Quality = Quality.Bad;
+          callback(monitorEvent, unsubscribe);
+        }
+      };
+      List<OpcDa.Item> items = new List<OpcDa.Item>();
+      foreach (var tag in tags)
+      {
+        items.Add(new OpcDa.Item {ItemName = tag});
+      }
+      sub.AddItems(items.ToArray());
       sub.SetEnabled(true);
     }
 

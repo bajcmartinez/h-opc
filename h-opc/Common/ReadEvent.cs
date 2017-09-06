@@ -14,6 +14,11 @@ namespace Hylasoft.Opc.Common
   public class ReadEvent<T>
   {
     /// <summary>
+    /// Gets the tag that was read from the server
+    /// </summary>
+    public String Tag { get; set; }
+
+    /// <summary>
     /// Gets the value that was read from the server
     /// </summary>
     public T Value { get; set; }
