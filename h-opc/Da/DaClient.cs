@@ -61,11 +61,11 @@ namespace Hylasoft.Opc.Da
     /// Gets the engineering unit of an OPC tag
     /// </summary>
     /// <param name="tag">Tag to get enginneering unit of</param>
-    /// <returns>String</returns>
-    public String GetEngineeringUnit(string tag)
+    /// <returns>Returns the engineering unit for the tag</returns>
+    public string GetEngineeringUnit(string tag)
     {
       var item = new OpcDa.Item { ItemName = tag };
-      String result = String.Empty;
+      string result = string.Empty;
       try
       {
         var propertyCollection = _server.GetProperties(new[] { item }, new[] { OpcDa.Property.ENGINEERINGUINTS }, false);
@@ -271,7 +271,7 @@ namespace Hylasoft.Opc.Da
       List<OpcDa.Item> items = new List<OpcDa.Item>();
       foreach (var tag in tags)
       {
-        items.Add(new OpcDa.Item {ItemName = tag});
+        items.Add(new OpcDa.Item { ItemName = tag });
       }
       sub.AddItems(items.ToArray());
       sub.SetEnabled(true);

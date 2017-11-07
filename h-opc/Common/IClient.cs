@@ -31,8 +31,8 @@ namespace Hylasoft.Opc.Common
     /// Gets the engineering unit of an OPC tag
     /// </summary>
     /// <param name="tag">Tag to get engineering unit of</param>
-    /// <returns>String</returns>
-    String GetEngineeringUnit(string tag);
+    /// <returns>The engenieering unit for the specified tag</returns>
+    string GetEngineeringUnit(string tag);
 
     /// <summary>
     /// Read a tag

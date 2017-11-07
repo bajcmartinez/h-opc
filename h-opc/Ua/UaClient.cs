@@ -110,10 +110,10 @@ namespace Hylasoft.Opc.Ua
     /// Gets the engineering unit of an OPC tag
     /// </summary>
     /// <param name="tag">Tag to get engineering unit of</param>
-    /// <returns>String</returns>
-    public String GetEngineeringUnit(string tag)
+    /// <returns>Returns the engineering unit for the gag</returns>
+    public string GetEngineeringUnit(string tag)
     {
-      return String.Empty;
+      return string.Empty;
     }
 
     private void SessionKeepAlive(Session session, KeepAliveEventArgs e)

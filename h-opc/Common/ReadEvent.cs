@@ -16,7 +16,7 @@ namespace Hylasoft.Opc.Common
     /// <summary>
     /// Gets the tag that was read from the server
     /// </summary>
-    public String Tag { get; set; }
+    public string Tag { get; set; }
 
     /// <summary>
     /// Gets the value that was read from the server
